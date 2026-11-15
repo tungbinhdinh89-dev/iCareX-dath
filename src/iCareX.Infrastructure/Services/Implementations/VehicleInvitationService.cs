@@ -11,6 +11,7 @@ using iCareX.Application.Features.Authorization.Contracts;
 using iCareX.Application.Features.Identity.Contracts;
 using iCareX.Application.Features.Vehicles.Contracts;
 using iCareX.Domain.Authorization;
+using iCareX.Domain.Common;
 using iCareX.Domain.Entities;
 using iCareX.Infrastructure.Persistence;
 using iCareX.Shared.Contracts.Vehicles;
@@ -25,10 +26,7 @@ public sealed class VehicleInvitationService(GarageDbContext db, IVehicleAccessS
     {
         var membership = await access.RequireAsync(actor, vehicleId, VehiclePermissions.VehicleRead, ct);
         if (membership.Role != VehicleMemberRole.Owner) throw new VehicleAccessDeniedException();
-        var name = await db.Vehicles.Where(x => x.Id == vehicleId).Select(x => x.Name ?? x.VehicleModel!.Name).SingleAsync(ct);
-        var invitations = await db.VehicleInvitations.AsNoTracking().Where(x => x.VehicleId == vehicleId)
-            .OrderByDescending(x => x.CreatedAtUtc).ToArrayAsync(ct);
-        return invitations.Select(x => Projection(x, name)).ToArray();
+        return await ProjectAsync(db.VehicleInvitations.AsNoTracking().Where(x => x.VehicleId == vehicleId), ct);
     }
 
     public async Task<VehicleInvitationResponse> CreateAsync(Guid actor, Guid vehicleId, CreateVehicleInvitationRequest request, CancellationToken ct)
@@ -63,12 +61,38 @@ public sealed class VehicleInvitationService(GarageDbContext db, IVehicleAccessS
         db.VehicleInvitations.Add(invitation);
         Audit(actor, invitation, "vehicle.invitation.created");
         await db.SaveChangesAsync(ct);
-        var name = await db.Vehicles.Where(x => x.Id == vehicleId).Select(x => x.Name ?? x.VehicleModel!.Name).SingleAsync(ct);
-        var link = settings.Value.Link($"loi-moi/{invitation.Id}", $"token={Uri.EscapeDataString(token)}");
-        await email.SendAsync(address.Address, "iCareX - Lời mời chia sẻ xe",
-            $"Bạn được mời tham gia xe {name} với vai trò {role}.\n{link}\nLiên kết có hiệu lực 7 ngày. Bạn cần đăng nhập đúng email đã xác thực và chủ động chấp nhận lời mời.", ct);
+        var response = (await ProjectAsync(db.VehicleInvitations.Where(x => x.Id == invitation.Id), ct)).Single();
+        await SendAsync(invitation, response, token, ct);
         await transaction.CommitAsync(ct);
-        return Projection(invitation, name);
+        return response;
+    }
+
+    public async Task<VehicleInvitationResponse> ResendAsync(Guid actor, Guid vehicleId, Guid invitationId, long version, CancellationToken ct)
+    {
+        await using var transaction = await VehicleWriteLock.BeginAsync(db, vehicleId, ct);
+        await access.RequireAsync(actor, vehicleId, VehiclePermissions.MemberInvite, ct);
+        var invitation = await db.VehicleInvitations.SingleOrDefaultAsync(x => x.Id == invitationId && x.VehicleId == vehicleId, ct)
+            ?? throw new VehicleNotFoundException();
+        if (version < 0 || invitation.Version != version) throw new VehicleConflictException("Lời mời đã thay đổi. Vui lòng tải lại.");
+        EnsurePending(invitation);
+        await EnsureSenderOwner(invitation, ct);
+        if (clock.UtcNow < VehicleInvitationRules.ResendAvailableAt(invitation, clock.UtcNow))
+            throw new VehicleConflictException("Vui lòng chờ ít nhất 60 giây giữa các lần gửi lời mời.");
+        if (await (from member in db.VehicleMembers join user in db.Users on member.UserId equals user.Id
+                   where member.VehicleId == vehicleId && member.RevokedAtUtc == null && user.NormalizedEmail == invitation.NormalizedInvitedEmail
+                   select member.Id).AnyAsync(ct)) throw new VehicleConflictException("Người dùng đã là thành viên của xe.");
+        email.EnsureConfigured();
+        var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        invitation.TokenHash = Hash(token);
+        invitation.UpdatedAtUtc = clock.UtcNow;
+        invitation.Version++;
+        // Keep the original expiry and role; resend never extends access or changes its scope.
+        Audit(actor, invitation, "vehicle.invitation.resent");
+        await db.SaveChangesAsync(ct);
+        var response = (await ProjectAsync(db.VehicleInvitations.Where(x => x.Id == invitationId), ct)).Single();
+        await SendAsync(invitation, response, token, ct);
+        await transaction.CommitAsync(ct);
+        return response;
     }
 
     public async Task RevokeAsync(Guid actor, Guid vehicleId, Guid invitationId, long version, CancellationToken ct)
@@ -95,20 +119,20 @@ public sealed class VehicleInvitationService(GarageDbContext db, IVehicleAccessS
         EnsurePending(invitation);
         var vehicle = await db.Vehicles.AsNoTracking().SingleAsync(x => x.Id == invitation.VehicleId, ct);
         if (vehicle.ArchivedAtUtc != null) throw new VehicleConflictException("Xe đang được lưu trữ.");
-        return Projection(invitation, vehicle.Name ?? await db.VehicleModels.Where(x => x.Id == vehicle.VehicleModelId).Select(x => x.Name).SingleAsync(ct));
+        await EnsureSenderOwner(invitation, ct);
+        return (await ProjectAsync(db.VehicleInvitations.AsNoTracking().Where(x => x.Id == invitationId), ct)).Single();
     }
 
     public async Task<IReadOnlyCollection<VehicleInvitationResponse>> InboxAsync(Guid actor, CancellationToken ct)
     {
         var user = await users.FindByIdAsync(actor.ToString()) ?? throw new VehicleAccessDeniedException();
         if (!user.EmailConfirmed) throw new VehicleAccessDeniedException();
-        return await (from invitation in db.VehicleInvitations.AsNoTracking()
-                      join vehicle in db.Vehicles.AsNoTracking() on invitation.VehicleId equals vehicle.Id
-                      where invitation.NormalizedInvitedEmail == user.NormalizedEmail && invitation.Status == VehicleInvitationStatus.Pending
-                          && invitation.ExpiresAtUtc > clock.UtcNow && vehicle.ArchivedAtUtc == null
-                      orderby invitation.CreatedAtUtc descending
-                      select new VehicleInvitationResponse(invitation.Id, vehicle.Id, vehicle.Name ?? vehicle.VehicleModel!.Name, invitation.Role.ToString(),
-                          "Pending", invitation.ExpiresAtUtc, invitation.Version)).ToArrayAsync(ct);
+        return await ProjectAsync(db.VehicleInvitations.AsNoTracking().Where(invitation =>
+            invitation.NormalizedInvitedEmail == user.NormalizedEmail && invitation.Status == VehicleInvitationStatus.Pending
+            && invitation.ExpiresAtUtc > clock.UtcNow
+            && db.Vehicles.Any(v => v.Id == invitation.VehicleId && v.ArchivedAtUtc == null)
+            && db.VehicleMembers.Any(m => m.VehicleId == invitation.VehicleId && m.UserId == invitation.InvitedByUserId
+                && m.Role == VehicleMemberRole.Owner && m.RevokedAtUtc == null)), ct);
     }
 
     public async Task RespondAsync(Guid actor, Guid invitationId, string token, bool accept, CancellationToken ct)
@@ -129,8 +153,7 @@ public sealed class VehicleInvitationService(GarageDbContext db, IVehicleAccessS
             if (await db.VehicleMembers.AnyAsync(x => x.VehicleId == vehicleId && x.UserId == actor && x.RevokedAtUtc == null, ct))
                 throw new VehicleConflictException("Bạn đã là thành viên của xe.");
             // Sender must still be the active Owner at acceptance time.
-            if (!await db.VehicleMembers.AnyAsync(x => x.VehicleId == vehicleId && x.UserId == invitation.InvitedByUserId
-                && x.Role == VehicleMemberRole.Owner && x.RevokedAtUtc == null, ct)) throw new VehicleConflictException("Lời mời không còn hiệu lực.");
+            await EnsureSenderOwner(invitation, ct);
             db.VehicleMembers.Add(new VehicleMember
             { VehicleId = vehicleId, UserId = actor, Role = invitation.Role, JoinedAtUtc = clock.UtcNow, CreatedAtUtc = clock.UtcNow });
             invitation.AcceptedByUserId = actor;
@@ -155,10 +178,32 @@ public sealed class VehicleInvitationService(GarageDbContext db, IVehicleAccessS
         if (string.IsNullOrEmpty(token) || token.Length > 200 || !CryptographicOperations.FixedTimeEquals(
             Encoding.ASCII.GetBytes(invitation.TokenHash), Encoding.ASCII.GetBytes(Hash(token)))) throw new VehicleNotFoundException();
     }
-    private VehicleInvitationResponse Projection(VehicleInvitation invitation, string name) => new(
-        invitation.Id, invitation.VehicleId, name, invitation.Role.ToString(),
-        invitation.Status == VehicleInvitationStatus.Pending && invitation.ExpiresAtUtc <= clock.UtcNow ? "Expired" : invitation.Status.ToString(),
-        invitation.ExpiresAtUtc, invitation.Version);
+    private async Task EnsureSenderOwner(VehicleInvitation invitation, CancellationToken ct)
+    {
+        if (!await db.VehicleMembers.AnyAsync(m => m.VehicleId == invitation.VehicleId && m.UserId == invitation.InvitedByUserId
+            && m.Role == VehicleMemberRole.Owner && m.RevokedAtUtc == null, ct)) throw new VehicleConflictException("Lời mời không còn hiệu lực.");
+    }
+
+    private async Task<VehicleInvitationResponse[]> ProjectAsync(IQueryable<VehicleInvitation> query, CancellationToken ct)
+    {
+        var rows = await (from invitation in query
+                          join vehicle in db.Vehicles on invitation.VehicleId equals vehicle.Id
+                          join sender in db.Accounts on invitation.InvitedByUserId equals sender.Id
+                          orderby invitation.CreatedAtUtc descending, invitation.Id
+                          select new { Invitation = invitation, Name = vehicle.Name ?? vehicle.VehicleModel!.Name,
+                              vehicle.Plate, SenderName = sender.Name }).ToArrayAsync(ct);
+        return rows.Select(x => new VehicleInvitationResponse(x.Invitation.Id, x.Invitation.VehicleId, x.Name,
+            x.Invitation.Role.ToString(), x.Invitation.Status == VehicleInvitationStatus.Pending && x.Invitation.ExpiresAtUtc <= clock.UtcNow
+                ? "Expired" : x.Invitation.Status.ToString(), x.Invitation.ExpiresAtUtc, x.Invitation.Version,
+            x.Invitation.InvitedEmail, x.SenderName, x.Plate, VehicleInvitationRules.ResendAvailableAt(x.Invitation, clock.UtcNow))).ToArray();
+    }
+
+    private Task SendAsync(VehicleInvitation invitation, VehicleInvitationResponse response, string token, CancellationToken ct)
+    {
+        var link = settings.Value.Link($"loi-moi/{invitation.Id}", $"token={Uri.EscapeDataString(token)}");
+        return email.SendAsync(invitation.InvitedEmail, "iCareX - Lời mời chia sẻ xe",
+            $"{response.InvitedByName} mời bạn tham gia xe {response.VehicleName} ({response.VehiclePlate ?? "không có biển số"}) với vai trò {response.Role}.\n{link}\nHết hạn lúc {invitation.ExpiresAtUtc:O}. Mỗi lời mời chỉ áp dụng cho xe và vai trò nêu trên. Bạn cần đăng nhập đúng email đã xác thực và chủ động chấp nhận lời mời. Khi nhận thư gửi lại, hãy dùng liên kết mới nhất.", ct);
+    }
     private void Audit(Guid actor, VehicleInvitation invitation, string action) => db.AuditLogs.Add(new AuditLog
     {
         ActorUserId = actor, VehicleId = invitation.VehicleId, Action = action, EntityType = nameof(VehicleInvitation),

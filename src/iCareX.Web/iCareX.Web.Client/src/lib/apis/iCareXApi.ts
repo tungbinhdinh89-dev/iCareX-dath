@@ -273,6 +273,12 @@ export const api = {
       { method: "DELETE" },
     )
   },
+  resendVehicleInvitation(vehicleId: string, invitationId: string, version: number) {
+    return apiRequest<VehicleInvitationResponse>(
+      `/vehicles/${encodeURIComponent(vehicleId)}/invitations/${encodeURIComponent(invitationId)}/resend`,
+      { method: "POST", body: JSON.stringify({ version }) },
+    )
+  },
   invitationInbox(signal?: AbortSignal) {
     return apiRequest<VehicleInvitationResponse[]>("/invitations/inbox", {
       signal,

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Alert,
   Box,
@@ -22,6 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import type { VehicleMemberResponse } from "@shared/vehicle-contracts"
 import { api } from "@/lib/apis/iCareXApi"
 import { emailSchema } from "@/lib/models/auth"
+import { canResendInvitation } from "@/lib/models/invitations"
 import { useGarage } from "@/lib/state/store"
 
 export const roleLabels: Record<string, string> = {
@@ -145,6 +146,11 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
   const { session, notify, can } = useGarage()
   const client = useQueryClient()
   const [error, setError] = useState("")
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
   const query = useQuery({
     queryKey: ["vehicle-invitations", session?.id, vehicleId],
     queryFn: ({ signal }) => api.vehicleInvitations(vehicleId, signal),
@@ -171,6 +177,16 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
     },
     onError: (error) => setError(errorMessage(error)),
   })
+  const resend = useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      api.resendVehicleInvitation(vehicleId, id, version),
+    onSuccess: async () => {
+      setError("")
+      await query.refetch()
+      notify("Đã gửi lại lời mời. Liên kết cũ đã được thay thế.")
+    },
+    onError: (error) => { setError(errorMessage(error)); void query.refetch() },
+  })
   if (!can("vehicle.member.invite", vehicleId)) return null
   return (
     <Box className="panel">
@@ -181,7 +197,8 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Lời mời được gửi qua email. Người nhận cần đăng nhập bằng đúng email
-            đã được mời.
+            đã được mời. Một email có thể nhận lời mời cho nhiều xe với vai trò
+            khác nhau; mỗi lời mời chỉ áp dụng cho xe này.
           </Typography>
         </Box>
         {error && (
@@ -246,6 +263,11 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
             </Button>
           </Stack>
         </Box>
+        <Typography variant="body2" color="text.secondary">
+          Muốn đổi vai trò khi đang chờ: thu hồi lời mời cũ rồi tạo lời mời mới.
+          Người đã là thành viên cần được đổi vai trò ở danh sách thành viên.
+          Gửi lại không gia hạn lời mời và cần chờ ít nhất 60 giây giữa các lần gửi.
+        </Typography>
         {query.isPending ? (
           <CircularProgress size={24} aria-label="Đang tải lời mời" />
         ) : query.error ? (
@@ -265,6 +287,9 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
               <Box key={invite.id} className="member-row">
                 <Box>
                   <Typography variant="subtitle2">
+                    {invite.invitedEmail}
+                  </Typography>
+                  <Typography variant="body2">
                     {roleLabels[invite.role] ?? invite.role}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -273,15 +298,23 @@ function InvitationsSection({ vehicleId }: { vehicleId: string }) {
                   </Typography>
                 </Box>
                 {invite.status === "Pending" && (
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <Button
+                    disabled={resend.isPending || revoke.isPending || !canResendInvitation(invite, now)}
+                    onClick={() => resend.mutate({ id: invite.id, version: invite.version })}
+                  >
+                    Gửi lại email
+                  </Button>
                   <Button
                     color="error"
-                    disabled={revoke.isPending}
+                    disabled={revoke.isPending || resend.isPending}
                     onClick={() =>
                       revoke.mutate({ id: invite.id, version: invite.version })
                     }
                   >
                     Thu hồi lời mời
                   </Button>
+                  </Stack>
                 )}
               </Box>
             ))}

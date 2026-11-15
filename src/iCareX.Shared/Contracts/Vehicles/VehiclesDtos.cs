@@ -37,11 +37,13 @@ public sealed record OdometerReadingResponse(
     string Note,
     long Version);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateOdometerReadingRequest(
     DateOnly Date,
     decimal Odo,
     string? Note);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record UpdateOdometerReadingRequest(
     DateOnly Date,
     decimal Odo,

@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Chip,
   Stack,
   Typography,
 } from "@mui/material"
@@ -55,7 +56,8 @@ export function InvitationInboxPage() {
         <Box className="panel">
           <Stack spacing={3}>
             <Alert severity="info">
-              Mở liên kết trong email để xem và phản hồi lời mời an toàn.
+              Mỗi lời mời có xe và vai trò riêng. Chấp nhận một xe không tự động
+              chấp nhận các xe khác. Mở liên kết trong email tương ứng để phản hồi.
             </Alert>
             {query.isPending ? (
               <CircularProgress size={24} />
@@ -80,15 +82,16 @@ export function InvitationInboxPage() {
                       {invite.vehicleName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
+                      {invite.vehiclePlate ?? "Chưa có biển số"} · Người mời: {invite.invitedByName}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
                       {roleLabels[invite.role] ?? invite.role} · Hết hạn{" "}
                       {new Date(invite.expiresAtUtc).toLocaleDateString(
                         "vi-VN",
                       )}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Kiểm tra email nhận lời mời
-                  </Typography>
+                  <Chip label="Đang chờ phản hồi" size="small" color="warning" variant="outlined" />
                 </Box>
               ))
             )}
@@ -202,6 +205,12 @@ export default function InvitationPage() {
             <>
               <Box className="panel" sx={{ bgcolor: "background.default" }}>
                 <Typography variant="h6">{invite.vehicleName}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {invite.vehiclePlate ?? "Chưa có biển số"} · Người mời: {invite.invitedByName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Dành cho {invite.invitedEmail}. Lời mời này chỉ cấp quyền trên xe nêu trên.
+                </Typography>
                 <Typography sx={{ mt: 1 }}>
                   Vai trò: {roleLabels[invite.role] ?? invite.role}
                 </Typography>

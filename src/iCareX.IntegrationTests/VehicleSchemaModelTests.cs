@@ -15,6 +15,10 @@ public sealed class VehicleSchemaModelTests
         using var db = new GarageDbContext(new DbContextOptionsBuilder<GarageDbContext>()
             .UseNpgsql("Host=localhost;Database=model_only;Username=test;Password=test").Options);
         var model = db.Model;
+        var invitationIndex = Assert.Single(model.FindEntityType(typeof(VehicleInvitation))!.GetIndexes(),
+            i => i.IsUnique && i.Properties.Any(p => p.Name == "NormalizedInvitedEmail"));
+        Assert.Equal(new[] { "VehicleId", "NormalizedInvitedEmail" }, invitationIndex.Properties.Select(p => p.Name));
+        Assert.Equal("\"Status\" = 'Pending'", invitationIndex.GetFilter());
         Assert.Null(model.FindEntityType("iCareX.Domain.Entities.VehicleType"));
         var vehicle = model.FindEntityType(typeof(Vehicle))!;
         Assert.Null(vehicle.FindProperty("HasTwoTanks"));

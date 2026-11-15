@@ -45,6 +45,12 @@ thương hiệu mặc định của Astra:
 
 ## Hướng dẫn thiết kế tổng quát
 
+Quyền thao tác xe: Manager sửa xe qua vehicle.update. Nút thêm ODO, quick
+action và xe trong form dựa odometer.create (Owner/Manager/Contributor).
+Sửa/xóa bản ghi ODO dùng odometer.update/delete (Owner); không dùng chung
+canManageOdo để chặn thêm mới. Biển số trùng kiểm ở backend theo owner AccountId,
+không so toàn bộ xe owned+shared trên client. Không có grant thì ẩn action.
+
 Vehicle registration/card đọc `doc/.be/vehicle-registration-schema.md`: card ảnh
 16:9, tên+brand/model, nhận diện nếu có, ODO đúng đơn vị, fuel+membership role;
 metadata/VNĐ/timestamps nằm trong Details. Tab owned/shared lấy membership Owner,

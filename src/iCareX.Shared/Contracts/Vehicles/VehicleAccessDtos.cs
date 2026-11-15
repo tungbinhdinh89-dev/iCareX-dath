@@ -19,7 +19,11 @@ public sealed record VehicleMemberResponse(
 public sealed record UpdateVehicleMemberRequest(string Role, long Version);
 
 public sealed record VehicleInvitationResponse(Guid Id, Guid VehicleId, string VehicleName,
-    string Role, string Status, DateTimeOffset ExpiresAtUtc, long Version);
+    string Role, string Status, DateTimeOffset ExpiresAtUtc, long Version,
+    string InvitedEmail, string InvitedByName, string? VehiclePlate, DateTimeOffset? ResendAvailableAtUtc);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ResendVehicleInvitationRequest(long Version);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateVehicleInvitationRequest(string Email, string Role);

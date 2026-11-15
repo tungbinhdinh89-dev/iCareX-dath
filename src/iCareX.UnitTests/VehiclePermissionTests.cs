@@ -9,6 +9,20 @@ public sealed class VehiclePermissionTests
     private static readonly Guid Actor = Guid.NewGuid();
 
     [Theory]
+    [InlineData(VehicleMemberRole.Owner, true, true, true)]
+    [InlineData(VehicleMemberRole.Manager, true, true, false)]
+    [InlineData(VehicleMemberRole.Contributor, false, true, false)]
+    [InlineData(VehicleMemberRole.Viewer, false, false, false)]
+    public void VehicleEditingAndOdometerWritesFollowOperationSpecificGrants(VehicleMemberRole role, bool editVehicle, bool createOdo, bool manageOdo)
+    {
+        Assert.Equal(editVehicle, VehiclePermissionRules.Allows(role, VehiclePermissions.VehicleUpdate, Actor));
+        Assert.Equal(createOdo, VehiclePermissionRules.Allows(role, VehiclePermissions.OdometerCreate, Actor));
+        Assert.Equal(manageOdo, VehiclePermissionRules.Allows(role, VehiclePermissions.OdometerUpdate, Actor));
+        Assert.Equal(manageOdo, VehiclePermissionRules.Allows(role, VehiclePermissions.OdometerDelete, Actor));
+        Assert.False(VehiclePermissionRules.Allows(role, VehiclePermissions.OdometerCreate, Actor, archived: true));
+    }
+
+    [Theory]
     [InlineData(VehicleMemberRole.Manager)]
     [InlineData(VehicleMemberRole.Contributor)]
     [InlineData(VehicleMemberRole.Viewer)]

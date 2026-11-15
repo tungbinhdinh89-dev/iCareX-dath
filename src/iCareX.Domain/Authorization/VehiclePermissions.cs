@@ -6,6 +6,9 @@ public static class VehiclePermissions
     public const string VehicleUpdate = "vehicle.update";
     public const string VehicleArchive = "vehicle.archive";
     public const string VehicleRestore = "vehicle.restore";
+    public const string OdometerCreate = "odometer.create";
+    public const string OdometerUpdate = "odometer.update";
+    public const string OdometerDelete = "odometer.delete";
     public const string MemberRead = "vehicle.member.read";
     public const string MemberInvite = "vehicle.member.invite";
     public const string MemberUpdate = "vehicle.member.update";
@@ -32,6 +35,7 @@ public static class VehiclePermissions
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
         VehicleRead, VehicleUpdate, VehicleArchive, VehicleRestore,
+        OdometerCreate, OdometerUpdate, OdometerDelete,
         MemberRead, MemberInvite, MemberUpdate, MemberRemove, OwnershipTransfer,
         FuelRead, FuelCreate, FuelUpdate, FuelDelete,
         MaintenanceRead, MaintenanceCreate, MaintenanceUpdate, MaintenanceDelete,

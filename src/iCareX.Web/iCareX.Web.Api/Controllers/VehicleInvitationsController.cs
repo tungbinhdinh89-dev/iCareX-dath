@@ -25,6 +25,10 @@ public sealed class VehicleInvitationsController(IVehicleInvitationService invit
         var result = await invitations.CreateAsync(Actor, vehicleId, request, ct);
         return Created($"/api/v1/vehicles/{vehicleId}/invitations/{result.Id}", result);
     }
+    [HttpPost("{invitationId:guid}/resend"), Authorize(Policy = VehiclePermissions.MemberInvite)]
+    public async Task<ActionResult<VehicleInvitationResponse>> Resend(Guid vehicleId, Guid invitationId, ResendVehicleInvitationRequest request, CancellationToken ct) =>
+        Ok(await invitations.ResendAsync(Actor, vehicleId, invitationId, request.Version, ct));
+
     [HttpDelete("{invitationId:guid}"), Authorize(Policy = VehiclePermissions.MemberRemove)]
     public async Task<IActionResult> Revoke(Guid vehicleId, Guid invitationId, [FromQuery] long version, CancellationToken ct)
     {

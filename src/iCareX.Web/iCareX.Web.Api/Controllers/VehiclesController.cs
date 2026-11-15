@@ -80,7 +80,7 @@ public sealed class VehiclesController(IVehicleService vehicles) : ControllerBas
     }
 
     [HttpPost("{vehicleId:guid}/odometer-readings")]
-    [Authorize(Policy = VehiclePermissions.VehicleRead)]
+    [Authorize(Policy = VehiclePermissions.OdometerCreate)]
     public async Task<ActionResult<OdometerReadingResponse>> CreateReading(
         Guid vehicleId, CreateOdometerReadingRequest request, CancellationToken cancellationToken)
     {
@@ -96,7 +96,7 @@ public sealed class VehiclesController(IVehicleService vehicles) : ControllerBas
     }
 
     [HttpPut("{vehicleId:guid}/odometer-readings/{readingId:guid}")]
-    [Authorize(Policy = VehiclePermissions.VehicleRead)]
+    [Authorize(Policy = VehiclePermissions.OdometerUpdate)]
     public async Task<ActionResult<OdometerReadingResponse>> UpdateReading(
         Guid vehicleId, Guid readingId, UpdateOdometerReadingRequest request, CancellationToken cancellationToken)
     {
@@ -111,7 +111,7 @@ public sealed class VehiclesController(IVehicleService vehicles) : ControllerBas
     }
 
     [HttpDelete("{vehicleId:guid}/odometer-readings/{readingId:guid}")]
-    [Authorize(Policy = VehiclePermissions.VehicleRead)]
+    [Authorize(Policy = VehiclePermissions.OdometerDelete)]
     public async Task<IActionResult> DeleteReading(
         Guid vehicleId, Guid readingId, [FromQuery] long version, CancellationToken cancellationToken)
     {

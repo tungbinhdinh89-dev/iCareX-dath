@@ -94,13 +94,14 @@ function EntryForm({
 }: {
   modal: Extract<ModalState, { type: "entry" }>
 }) {
-  const { data, save, pending, setModal, refetch, notify, canManageOdo } =
+  const { data, save, pending, setModal, refetch, notify, canManageOdo, canCreateOdo } =
     useGarage()
+  const canWriteOdo = (vehicleId: string) => modal.entry ? canManageOdo(vehicleId) : canCreateOdo(vehicleId)
   const [error, setError] = useState("")
   const initialVehicle =
     modal.entry?.vehicleId ??
     modal.vehicleId ??
-    data?.vehicles.find((vehicle) => canManageOdo(vehicle.id))?.id ??
+    data?.vehicles.find((vehicle) => canWriteOdo(vehicle.id))?.id ??
     ""
   const vehicle = data?.vehicles.find((v) => v.id === initialVehicle)
   const {
@@ -134,7 +135,7 @@ function EntryForm({
   if (!data) return null
   const submit = handleSubmit(async (values) => {
     setError("")
-    if (modal.kind !== "odo" || !canManageOdo(values.vehicleId)) {
+    if (modal.kind !== "odo" || !canWriteOdo(values.vehicleId)) {
       setError("Bạn không có quyền ghi ODO cho phương tiện này.")
       return
     }
@@ -236,7 +237,7 @@ function EntryForm({
                 }}
               >
                 {data.vehicles
-                  .filter((v) => canManageOdo(v.id))
+                  .filter((v) => canWriteOdo(v.id))
                   .map((v) => (
                     <MenuItem value={v.id} key={v.id}>
                       {v.name} · {v.plate}
@@ -372,7 +373,7 @@ const vehicleSchema = z.object({
 })
 type VehicleFields = z.infer<typeof vehicleSchema>
 function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
-  const { data, notify, refetch, setModal } = useGarage()
+  const { data, notify, refetch, setModal, can } = useGarage()
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
   const [types, setTypes] = useState<{ id: string; name: string }[]>([])
@@ -450,15 +451,8 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   }, [selectedBrandId, notify])
   const submit = handleSubmit(async (values) => {
     setError("")
-    if (
-      values.plate.trim() && data?.vehicles.some(
-        (v) =>
-          v.id !== vehicle?.id &&
-          v.plate.replace(/\W/g, "").toUpperCase() ===
-            values.plate.replace(/\W/g, "").toUpperCase(),
-      )
-    ) {
-      setError("Biển số này đã có trong danh sách xe.")
+    if (vehicle && !can("vehicle.update", vehicle.id)) {
+      setError("Bạn không còn quyền sửa thông tin phương tiện này.")
       return
     }
     if (

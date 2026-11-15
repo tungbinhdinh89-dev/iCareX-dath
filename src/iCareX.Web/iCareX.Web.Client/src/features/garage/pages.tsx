@@ -128,8 +128,8 @@ function Stat({
   )
 }
 function AddRecordButton() {
-  const { open, canManageOdo } = useGarage()
-  if (!canManageOdo()) return null
+  const { open, canCreateOdo } = useGarage()
+  if (!canCreateOdo()) return null
   return (
     <Button
       variant="contained"
@@ -170,7 +170,7 @@ function driven(data: Garage, vehicle: string, month: string) {
 }
 
 export default function Dashboard() {
-  const { data, open, month, selectedVehicle, canManageOdo } = useGarage()
+  const { data, open, month, selectedVehicle, canCreateOdo } = useGarage()
   const navigate = useNavigate()
   if (!data) return null
   const activeMonth = month === "all" ? today().slice(0, 7) : month
@@ -197,7 +197,7 @@ export default function Dashboard() {
             : (vehicles[0]?.name ?? "Phương tiện đã chọn")
         }`}
       >
-        {canManageOdo() && (
+        {canCreateOdo() && (
           <Button
             variant="contained"
             startIcon={<AddRounded />}
@@ -308,7 +308,7 @@ export default function Dashboard() {
                     ? `Cập nhật ${dateLabel(latestReading.date)} · Nhập thủ công`
                     : "Mốc ODO ban đầu"}
                 </Typography>
-                {canManageOdo(focusVehicle.id) && (
+                {canCreateOdo(focusVehicle.id) && (
                   <Button
                     variant="outlined"
                     sx={{ mt: 2 }}
@@ -497,7 +497,7 @@ export function Vehicles() {
 
 export function VehicleDetail() {
   const { id } = useParams()
-  const { data, open, can, canManageOdo, permissions, refetch, notify } =
+  const { data, open, can, canCreateOdo, permissions, refetch, notify } =
     useGarage()
   const navigate = useNavigate()
   const [tab, setTab] = useState(0)
@@ -567,14 +567,13 @@ export function VehicleDetail() {
             </Button>
           )}
           {can("vehicle.update", vehicle.id) && (
-            <Tooltip title="Chỉnh sửa xe">
-              <IconButton
-                aria-label="Chỉnh sửa xe"
+              <Button
+                variant="outlined"
+                startIcon={<EditOutlined />}
                 onClick={() => open({ type: "vehicle", vehicle })}
               >
-                <EditOutlined />
-              </IconButton>
-            </Tooltip>
+                Sửa thông tin xe
+              </Button>
           )}
           {can("vehicle.archive", vehicle.id) && (
             <Tooltip title="Lưu trữ phương tiện">
@@ -627,7 +626,7 @@ export function VehicleDetail() {
             Ảnh minh họa phương tiện
           </Typography>
         </Box>
-        {canManageOdo(vehicle.id) && (
+        {canCreateOdo(vehicle.id) && (
           <Button
             variant="contained"
             startIcon={<SpeedOutlined />}
@@ -665,7 +664,7 @@ export function VehicleDetail() {
       <Box className="panel">
         <Box className="filters">
           {(["fuel", "service", "odo"] as const)
-            .filter((kind) => kind === "odo" && canManageOdo(vehicle.id))
+            .filter((kind) => kind === "odo" && canCreateOdo(vehicle.id))
             .map((kind) => (
               <Button
                 key={kind}

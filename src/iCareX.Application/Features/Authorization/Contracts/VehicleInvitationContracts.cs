@@ -4,6 +4,7 @@ namespace iCareX.Application.Features.Authorization.Contracts;
 
 public interface IVehicleInvitationService
 {
+    Task<VehicleInvitationResponse> ResendAsync(Guid actor, Guid vehicleId, Guid invitationId, long version, CancellationToken ct);
     Task<IReadOnlyCollection<VehicleInvitationResponse>> ListAsync(Guid actor, Guid vehicleId, CancellationToken ct);
     Task<VehicleInvitationResponse> CreateAsync(Guid actor, Guid vehicleId, CreateVehicleInvitationRequest request, CancellationToken ct);
     Task RevokeAsync(Guid actor, Guid vehicleId, Guid invitationId, long version, CancellationToken ct);

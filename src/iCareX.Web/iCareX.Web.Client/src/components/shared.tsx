@@ -167,7 +167,7 @@ export function MonthFilter({ all = true }: { all?: boolean }) {
 }
 
 export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
-  const { data, open, can, canManageOdo, permissions } = useGarage()
+  const { data, open, can, canCreateOdo, permissions } = useGarage()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const navigate = useNavigate()
   if (!data || !can('vehicle.read', vehicle.id)) return null
@@ -176,7 +176,7 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
   const canEdit = can('vehicle.update', vehicle.id)
   const canMembers = can('vehicle.member.invite', vehicle.id)
   const canArchive = can('vehicle.archive', vehicle.id)
-  const odo = canManageOdo(vehicle.id)
+  const odo = canCreateOdo(vehicle.id)
   const hasMenu = canEdit || canMembers || canArchive || odo
   const action = (run: () => void) => { setAnchor(null); run() }
   return (

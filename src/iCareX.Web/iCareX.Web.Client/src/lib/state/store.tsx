@@ -73,6 +73,7 @@ type ContextValue = {
   hasRole: (role: string, vehicleId?: string) => boolean
   canAccessVehicle: (vehicleId: string) => boolean
   canManageOdo: (vehicleId?: string) => boolean
+  canCreateOdo: (vehicleId?: string) => boolean
   session: Account | null
   sessionStatus: "checking" | "authenticated" | "anonymous" | "error"
   sessionError: Error | null
@@ -265,17 +266,25 @@ export default function GarageProvider({ children }: { children: ReactNode }) {
       return permissions.vehicles.some(
         (item) =>
           (target === "all" || item.vehicleId === target) &&
-          item.role === "Owner" &&
           !item.isArchived &&
           canPermission(
             permissions,
             session?.id,
-            "vehicle.read",
+            "odometer.update",
             item.vehicleId,
           ),
       )
     },
     [accessReady, permissions, selectedVehicle, session?.id],
+  )
+  const canCreateOdo = useCallback(
+    (vehicleId?: string) => {
+      if (!accessReady || !permissions) return false
+      const target = vehicleId ?? selectedVehicle
+      return permissions.vehicles.some((item) =>
+        (target === "all" || item.vehicleId === target) && !item.isArchived &&
+        canPermission(permissions, session?.id, "odometer.create", item.vehicleId))
+    }, [accessReady, permissions, selectedVehicle, session?.id],
   )
   const refreshPermissions = useCallback(async () => {
     const id = currentAccount.current
@@ -394,7 +403,7 @@ export default function GarageProvider({ children }: { children: ReactNode }) {
     let allowed = true
     if (m?.type === "entry")
       allowed =
-        m.kind === "odo" && canManageOdo(m.entry?.vehicleId ?? m.vehicleId)
+        m.kind === "odo" && (m.entry ? canManageOdo(m.entry.vehicleId) : canCreateOdo(m.vehicleId))
     if (m?.type === "vehicle" && m.vehicle)
       allowed = can("vehicle.update", m.vehicle.id)
     if (m?.type === "plan") allowed = false // No Plan mutation API exists in this slice.
@@ -453,6 +462,7 @@ export default function GarageProvider({ children }: { children: ReactNode }) {
         hasRole,
         canAccessVehicle,
         canManageOdo,
+        canCreateOdo,
         session,
         sessionStatus,
         sessionError,

@@ -17,13 +17,14 @@ public static class VehiclePermissionRules
         if (role == VehicleMemberRole.Manager)
             return permission is VehiclePermissions.VehicleArchive or VehiclePermissions.VehicleRestore
                 or VehiclePermissions.MemberInvite or VehiclePermissions.MemberUpdate
-                or VehiclePermissions.MemberRemove or VehiclePermissions.OwnershipTransfer ? null : "all";
+                or VehiclePermissions.MemberRemove or VehiclePermissions.OwnershipTransfer
+                or VehiclePermissions.OdometerUpdate or VehiclePermissions.OdometerDelete ? null : "all";
         if (permission is VehiclePermissions.VehicleRead or VehiclePermissions.FuelRead
             or VehiclePermissions.MaintenanceRead or VehiclePermissions.ReminderRead) return "all";
         if (role == VehicleMemberRole.Viewer) return null;
         return permission switch
         {
-            VehiclePermissions.FuelCreate or VehiclePermissions.MaintenanceCreate => "all",
+            VehiclePermissions.FuelCreate or VehiclePermissions.MaintenanceCreate or VehiclePermissions.OdometerCreate => "all",
             VehiclePermissions.FuelUpdate or VehiclePermissions.FuelDelete
                 or VehiclePermissions.MaintenanceUpdate or VehiclePermissions.MaintenanceDelete
                 or VehiclePermissions.ReminderUpdate or VehiclePermissions.ReminderDelete => "own",

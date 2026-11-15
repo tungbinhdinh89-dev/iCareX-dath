@@ -5,6 +5,11 @@ description: Đặc tả, triển khai hoặc kiểm thử auth/session và phâ
 
 # Access control nghiệp vụ iCareX
 
+Invitation runtime: đọc `doc/.be/vehicle-invitations.md`. Cùng email có nhiều
+lời mời/role trên nhiều xe của cùng Owner; unique Pending chỉ VehicleId+email.
+Resend version-only/Owner/CSRF, cooldown60s, rotate token và giữ expiry/role.
+Đổi role Pending qua revoke+create; không deduplicate inbox theo sender/email.
+
 Đọc `doc/authentication-authorization.md`, `doc/rules.md` và tài liệu của
 vai trò bên dưới trước thay đổi. Đây là skill nghiệp vụ dùng chung, không
 phải một hệ thống authentication mới. Phân biệt source hiện tại và thiết kế
@@ -29,7 +34,10 @@ phải một hệ thống authentication mới. Phân biệt source hiện tại
   không invite/update/remove members/transfer/archive.
 - Contributor tạo fuel/maintenance; sửa/xóa chỉ own CreatedByUserId; reminder
   completion phải own/assigned. Viewer chỉ đọc theo permission matrix.
-- Plan permission của Viewer/Contributor, manual ODO và snooze chưa chốt:
+- Manual ODO: odometer.create cho Owner/Manager/Contributor; odometer.update/
+  delete chỉ Owner; archived/revoked deny. Manager sửa xe qua vehicle.update.
+  Frontend tách canCreateOdo khỏi canManageOdo, không suy quyền từ global role.
+- Plan permission của Viewer/Contributor và snooze chưa chốt:
   không tự cấp thêm. Assignment không nâng quyền Viewer; Driver không phải creator.
 - Backend resolve membership từ DB và kiểm resource thuộc xe; không tin
   actor/role/permission/creator/owner do Client gửi. Permission map trong code,

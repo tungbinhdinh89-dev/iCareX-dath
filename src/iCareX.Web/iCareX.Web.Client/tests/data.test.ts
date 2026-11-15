@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { canResendInvitation } from '../src/lib/models/invitations.ts'
 import { matchesVehicleTab, vehicleFormDefaults, vehicleMaintenanceSummary } from '../src/lib/models/vehiclePresentation.ts'
 import {
   odoOf,
@@ -102,6 +103,55 @@ test("profile updates whitelist editable fields, send cookie CSRF and refetch cu
     globalThis.fetch = originalFetch
     resetSessionRequests()
   }
+})
+
+test("resending invitations is scoped to the chosen vehicle and rotates via version-only request", async () => {
+  const originalFetch = globalThis.fetch
+  resetSessionRequests()
+  const requests: Array<{ url: string; init?: RequestInit }> = []
+  try {
+    globalThis.fetch = async (input, init) => {
+      requests.push({ url: String(input), init })
+      return Response.json(String(input).endsWith('/csrf') ? { token: 'csrf-invite' } : { id: 'invite-B', vehicleId: 'vehicle-B', role: 'Contributor' })
+    }
+    const response = await api.resendVehicleInvitation('vehicle-B', 'invite-B', 3)
+    assert.equal(response.role, 'Contributor')
+    const sent = requests.at(-1)!
+    assert.equal(sent.url, '/api/v1/vehicles/vehicle-B/invitations/invite-B/resend')
+    assert.equal(sent.init?.method, 'POST')
+    assert.equal(sent.init?.credentials, 'include')
+    assert.equal((sent.init?.headers as Record<string, string>)['X-CSRF-TOKEN'], 'csrf-invite')
+    assert.deepEqual(JSON.parse(String(sent.init?.body)), { version: 3 })
+  } finally { globalThis.fetch = originalFetch; resetSessionRequests() }
+})
+
+test("resend button waits for the server deadline and rejects processed or expired invitations", () => {
+  const now = Date.now()
+  const invite = { status: 'Pending', expiresAtUtc: new Date(now + 86400000).toISOString(), resendAvailableAtUtc: new Date(now + 60000).toISOString() }
+  assert.equal(canResendInvitation(invite, now), false)
+  assert.equal(canResendInvitation(invite, now + 60000), true)
+  assert.equal(canResendInvitation({ ...invite, status: 'Accepted' }, now + 60000), false)
+  assert.equal(canResendInvitation({ ...invite, resendAvailableAtUtc: null }, now + 60000), false)
+  assert.equal(canResendInvitation(invite, now + 86400000), false)
+})
+
+test("shared vehicle actions follow separate edit/create-ODO grants for each membership", () => {
+  const snapshot = { userId: 'actor', globalRoles: ['User'], vehicles: [
+    { vehicleId: 'owner-car', role: 'Owner', accessType: 'Owned', isArchived: false, permissions: ['vehicle.read', 'vehicle.update', 'odometer.create', 'odometer.update', 'odometer.delete'].map(code => ({ code, scope: 'all' })) },
+    { vehicleId: 'managed-car', role: 'Manager', accessType: 'Shared', isArchived: false, permissions: ['vehicle.read', 'vehicle.update', 'odometer.create'].map(code => ({ code, scope: 'all' })) },
+    { vehicleId: 'contributed-car', role: 'Contributor', accessType: 'Shared', isArchived: false, permissions: ['vehicle.read', 'odometer.create'].map(code => ({ code, scope: 'all' })) },
+    { vehicleId: 'viewed-car', role: 'Viewer', accessType: 'Shared', isArchived: false, permissions: [{ code: 'vehicle.read', scope: 'all' }] },
+  ] }
+  assert.equal(canPermission(snapshot, 'actor', 'vehicle.update', 'managed-car'), true)
+  assert.equal(canPermission(snapshot, 'actor', 'vehicle.update', 'contributed-car'), false)
+  for (const id of ['owner-car', 'managed-car', 'contributed-car']) assert.equal(canPermission(snapshot, 'actor', 'odometer.create', id), true)
+  assert.equal(canPermission(snapshot, 'actor', 'odometer.create', 'viewed-car'), false)
+  assert.equal(canPermission(snapshot, 'actor', 'odometer.create', 'missing'), false)
+  assert.equal(canPermission(snapshot, 'other-actor', 'odometer.create', 'managed-car'), false)
+  for (const id of ['managed-car', 'contributed-car', 'viewed-car']) assert.equal(canPermission(snapshot, 'actor', 'odometer.update', id), false)
+  const revoked = withoutVehicle(snapshot, 'managed-car')
+  assert.equal(canPermission(revoked, 'actor', 'vehicle.update', 'managed-car'), false)
+  assert.equal(canPermission(revoked, 'actor', 'odometer.create', 'managed-car'), false)
 })
 
 test("registration reports durable account creation separately from email delivery", () => {

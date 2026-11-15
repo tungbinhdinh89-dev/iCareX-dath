@@ -40,6 +40,14 @@ export type VehicleInvitationResponse = {
   status: string
   expiresAtUtc: string
   version: number
+  invitedEmail: string
+  invitedByName: string
+  vehiclePlate?: string | null
+  resendAvailableAtUtc?: string | null
+}
+
+export type ResendVehicleInvitationRequest = {
+  version: number
 }
 
 export type CreateVehicleInvitationRequest = {
