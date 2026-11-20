@@ -1,5 +1,6 @@
 import { vehicleFormDefaults } from "@/lib/models/vehiclePresentation"
 import LoginForm from "@/components/AuthForm"
+import CostRecordForm from "@/components/CostRecordForm"
 export { default as LoginForm } from "@/components/AuthForm"
 import { useEffect, useState } from "react"
 import {
@@ -771,7 +772,9 @@ function PlanForm({ modal }: { modal: Extract<ModalState, { type: "plan" }> }) {
 }
 
 export default function Dialogs() {
-  const { modal, setModal, data, save, pending, notify, refetch } = useGarage()
+  const { modal, setModal, data, save, pending: serverPending, notify, refetch } = useGarage()
+  const [localPending, setLocalPending] = useState(false)
+  const pending = serverPending || localPending
   if (!modal) return null
   const title =
     modal.type === "login"
@@ -864,7 +867,7 @@ export default function Dialogs() {
         </IconButton>
       </DialogTitle>
       {modal.type === "login" && <LoginForm />}
-      {modal.type === "entry" && <EntryForm modal={modal} />}
+      {modal.type === "entry" && (modal.kind === "odo" ? <EntryForm modal={modal} /> : <CostRecordForm modal={modal} onPendingChange={setLocalPending} />)}
       {modal.type === "vehicle" && <VehicleForm vehicle={modal.vehicle} />}
       {modal.type === "plan" && <PlanForm modal={modal} />}
       {modal.type === "delete" && (
@@ -880,7 +883,7 @@ export default function Dialogs() {
               {modal.entity === "vehicle"
                 ? "Phương tiện sẽ được lưu trữ. Lịch sử đã ghi nhận được giữ lại."
                 : modal.entity === "entry"
-                  ? "ODO, chi phí và hạn bảo dưỡng liên quan sẽ được tính lại. Xóa dịch vụ hoàn tất có thể làm kế hoạch đến hạn trở lại."
+                  ? "Bản ghi sẽ bị xóa. ODO nguồn và tổng chi phí liên quan được cập nhật cùng lúc."
                   : "Kế hoạch sẽ bị xóa, các dịch vụ đã ghi nhận vẫn được giữ trong lịch sử."}
             </Alert>
           </DialogContent>
@@ -917,6 +920,17 @@ export default function Dialogs() {
                   modal.entity === "entry"
                     ? data?.entries.find((item) => item.id === modal.id)
                     : undefined
+                if (entry && entry.kind !== "odo") {
+                  setLocalPending(true)
+                  try {
+                    await api.deleteCostRecord(entry)
+                    await refetch()
+                    notify("Đã xóa bản ghi và cập nhật chi phí, ODO.")
+                    setModal(null)
+                  } catch (e) { notify(e instanceof Error ? e.message : "Không thể xóa bản ghi.", "error") }
+                  finally { setLocalPending(false) }
+                  return
+                }
                 if (entry?.kind === "odo") {
                   try {
                     await api.deleteOdometerReading(

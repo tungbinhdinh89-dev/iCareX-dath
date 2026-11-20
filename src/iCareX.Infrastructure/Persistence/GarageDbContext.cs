@@ -15,6 +15,7 @@ public sealed class GarageDbContext(DbContextOptions<GarageDbContext> options)
     public DbSet<OdometerReading> OdometerReadings => Set<OdometerReading>();
     public DbSet<FuelEntry> FuelEntries => Set<FuelEntry>();
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
+    public DbSet<ServiceItem> ServiceItems => Set<ServiceItem>();
     public DbSet<VehicleMember> VehicleMembers => Set<VehicleMember>();
     public DbSet<VehicleInvitation> VehicleInvitations => Set<VehicleInvitation>();
     public DbSet<Reminder> Reminders => Set<Reminder>();
@@ -86,6 +87,10 @@ public sealed class GarageDbContext(DbContextOptions<GarageDbContext> options)
         });
         b.Entity<OdometerReading>(e =>
         {
+            e.HasIndex(x => x.FuelEntryId).IsUnique();
+            e.HasIndex(x => x.MaintenanceRecordId).IsUnique();
+            e.HasOne<FuelEntry>().WithOne().HasForeignKey<OdometerReading>(x => x.FuelEntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<MaintenanceRecord>().WithOne().HasForeignKey<OdometerReading>(x => x.MaintenanceRecordId).OnDelete(DeleteBehavior.Cascade);
             e.ToTable("odometer_readings", t => t.HasCheckConstraint("ck_odometer_reading_odo", "\"Odo\" BETWEEN 0 AND 9999999999.99"));
             e.HasKey(x => x.Id);
             e.Property(x => x.Note).HasMaxLength(500);
@@ -97,6 +102,8 @@ public sealed class GarageDbContext(DbContextOptions<GarageDbContext> options)
         });
         b.Entity<FuelEntry>(e =>
         {
+            e.Property(x => x.Note).HasMaxLength(500);
+            e.Property(x => x.Version).IsConcurrencyToken();
             e.ToTable("fuel_entries", t =>
             {
                 t.HasCheckConstraint("ck_fuel_entry_numbers", "\"Odo\" BETWEEN 0 AND 9999999999.99 AND \"Cost\" > 0 AND \"Liters\" > 0 AND \"Liters\" <= 500");
@@ -110,6 +117,7 @@ public sealed class GarageDbContext(DbContextOptions<GarageDbContext> options)
         });
         b.Entity<MaintenanceRecord>(e =>
         {
+            e.Property(x => x.Version).IsConcurrencyToken();
             e.ToTable("maintenance_records", t => t.HasCheckConstraint("ck_maintenance_record_numbers",
                 "\"Odo\" BETWEEN 0 AND 9999999999.99 AND \"Cost\" > 0"));
             e.HasKey(x => x.Id);
@@ -122,6 +130,20 @@ public sealed class GarageDbContext(DbContextOptions<GarageDbContext> options)
             e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.DriverUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<MaintenancePlan>().WithMany().HasForeignKey(x => new { x.AccountId, x.VehicleId, x.PlanId })
                 .HasPrincipalKey(x => new { x.AccountId, x.VehicleId, x.Id }).OnDelete(DeleteBehavior.NoAction);
+        });
+        b.Entity<ServiceItem>(e =>
+        {
+            e.ToTable("service_items", t =>
+            {
+                t.HasCheckConstraint("ck_service_item_type", "\"Type\" IN ('Repair', 'Maintenance')");
+                t.HasCheckConstraint("ck_service_item_cost", "\"Cost\" BETWEEN 0 AND 10000000000 AND trunc(\"Cost\") = \"Cost\"");
+                t.HasCheckConstraint("ck_service_item_plan", "\"PlanId\" IS NULL OR \"Type\" = 'Maintenance'");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Type).HasMaxLength(16);
+            e.Property(x => x.Title).HasMaxLength(100);
+            e.HasOne<MaintenanceRecord>().WithMany(x => x.Items).HasForeignKey(x => x.MaintenanceRecordId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<MaintenancePlan>().WithMany().HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<VehicleMember>(e =>
         {

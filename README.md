@@ -13,8 +13,9 @@ Hồ sơ cá nhân lưu bằng `PUT /api/v1/auth/me` (name/phone, cookie + CSRF)
 form đã tích hợp API thật; [contract](doc/.be/api-contracts.md).
 Account mới phải xác thực email trước khi vào ứng dụng; setup `AccountEmail:*`
 bằng User Secrets/environment để gửi thư thật. Có permissions API, membership,
-invitation, verify/reset/change password; chưa có Fuel/Maintenance/Reminder CRUD
-hoặc ownership transfer. Các migration sharing hiện có phải được áp dụng chủ
+invitation, verify/reset/change password. Nhánh #32/#33/#42 bổ sung Fuel/Service
+CRUD và form nhiều hạng mục: [contract và giới hạn kiểm chứng](doc/.be/cost-records.md).
+Reminder CRUD và ownership transfer chưa hoàn chỉnh. Các migration hiện có phải được áp dụng chủ
 động; ứng dụng không tự migrate lúc startup.
 
 Đăng ký hiện lưu tài khoản trước khi gửi thư; SMTP lỗi vẫn trả 201 với

@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SHARED = ROOT / "src" / "iCareX.Shared"
-OUTPUTS = {"Identity": "auth-contracts.ts", "Vehicles": "vehicle-contracts.ts"}
+OUTPUTS = {"Identity": "auth-contracts.ts", "Vehicles": "vehicle-contracts.ts", "Records": "record-contracts.ts"}
 SCALARS = {
     "string": "string", "Guid": "string", "DateOnly": "string",
     "DateTimeOffset": "string", "bool": "boolean", "int": "number",

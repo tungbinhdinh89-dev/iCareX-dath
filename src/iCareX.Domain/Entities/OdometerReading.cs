@@ -7,6 +7,8 @@ public sealed class OdometerReading : AuditedEntity
     public Guid VehicleId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid? DriverUserId { get; set; }
+    public Guid? FuelEntryId { get; set; }
+    public Guid? MaintenanceRecordId { get; set; }
     public DateOnly Date { get; set; }
     public decimal Odo { get; set; }
     public string Note { get; set; } = "";

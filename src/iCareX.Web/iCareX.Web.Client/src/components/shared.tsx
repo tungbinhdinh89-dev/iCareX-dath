@@ -284,13 +284,15 @@ export function HistoryTable({
   entries: Entry[]
   editable?: boolean
 }) {
-  const { data, open, canManageOdo } = useGarage()
+  const { data, open, canManageOdo, can } = useGarage()
+  const canChange = (entry: Entry) => entry.kind === 'odo' ? canManageOdo(entry.vehicleId)
+    : can(`${entry.kind === 'fuel' ? 'fuel' : 'maintenance'}.update`, entry.vehicleId, entry)
   if (!data) return null
   if (!entries.length) return <Empty />
   const hasActions =
     editable &&
     entries.some(
-      (entry) => entry.kind === "odo" && canManageOdo(entry.vehicleId),
+      (entry) => canChange(entry),
     )
   return (
     <Box className="activity-views">
@@ -368,8 +370,7 @@ export function HistoryTable({
                   </TableCell>
                   {hasActions && (
                     <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                      {entry.kind === "odo" &&
-                        canManageOdo(entry.vehicleId) && (
+                      {canChange(entry) && (
                           <>
                             <Tooltip title="Chỉnh sửa">
                               <IconButton
@@ -445,8 +446,7 @@ export function HistoryTable({
                 </Typography>
               </Box>
               {editable &&
-                entry.kind === "odo" &&
-                canManageOdo(entry.vehicleId) && (
+                canChange(entry) && (
                   <Box className="activity-card-actions">
                     <Button
                       size="small"

@@ -13,4 +13,5 @@ public sealed class MaintenanceRecord : AuditedEntity
     public decimal Odo { get; set; }
     public decimal Cost { get; set; }
     public string Note { get; set; } = "";
+    public List<ServiceItem> Items { get; set; } = [];
 }

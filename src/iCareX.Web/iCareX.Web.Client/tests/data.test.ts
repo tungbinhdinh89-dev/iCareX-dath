@@ -1,5 +1,44 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { recordRequestKey } from '../src/lib/models/recordRequest.ts'
+
+test('cost command keeps its key for lost-response retry and changes it after editing', () => {
+  const payload = { vehicleId: 'a', cost: 200000, liters: 10 }
+  const first = recordRequestKey(null, payload)
+  assert.equal(recordRequestKey(first, { ...payload }).key, first.key)
+  assert.notEqual(recordRequestKey(first, { ...payload, cost: 200001 }).key, first.key)
+  assert.notEqual(recordRequestKey(first, { ...payload, vehicleId: 'b' }).key, first.key)
+})
+
+test('fuel and multi-item service retries preserve command body and use cookie CSRF', async () => {
+  const original = globalThis.fetch
+  resetSessionRequests()
+  const calls: { path: string; init?: RequestInit }[] = []
+  try {
+    globalThis.fetch = async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/csrf')) return Response.json({ token: 'csrf-cost' })
+      calls.push({ path, init })
+      if (calls.length === 1) throw new TypeError('Response lost')
+      return init?.method === 'DELETE' ? new Response(null, { status: 204 }) : Response.json({ id: 'saved' })
+    }
+    const request = { requestId: crypto.randomUUID(), date: '2026-11-02', odo: 10100, cost: 200000, liters: 10, note: '', version: null }
+    await assert.rejects(api.saveFuel('car', undefined, request), /Response lost/)
+    await api.saveFuel('car', undefined, request)
+    assert.equal(calls[0].init?.body, calls[1].init?.body)
+    await api.saveService('car', 'service-id', { requestId: crypto.randomUUID(), date: '2026-11-03', odo: 10200, note: '', version: 3,
+      items: [{ type: 'Repair', title: 'Sửa xe', cost: 100000, planId: null }, { type: 'Maintenance', title: 'Thay dầu', cost: 150000, planId: null }] })
+    assert.equal(calls[2].init?.method, 'PUT')
+    const service = JSON.parse(String(calls[2].init?.body))
+    assert.equal(service.items.reduce((sum: number, x: { cost: number }) => sum + x.cost, 0), 250000)
+    assert.equal('cost' in service, false)
+    assert.equal(service.version, 3)
+    for (const call of calls) {
+      assert.equal(call.init?.credentials, 'include')
+      assert.equal((call.init?.headers as Record<string, string>)['X-CSRF-TOKEN'], 'csrf-cost')
+    }
+  } finally { globalThis.fetch = original; resetSessionRequests() }
+})
 import { canResendInvitation } from '../src/lib/models/invitations.ts'
 import { matchesVehicleTab, vehicleFormDefaults, vehicleMaintenanceSummary } from '../src/lib/models/vehiclePresentation.ts'
 import {

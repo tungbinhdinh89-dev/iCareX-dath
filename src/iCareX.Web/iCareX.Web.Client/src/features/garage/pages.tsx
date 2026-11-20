@@ -664,7 +664,7 @@ export function VehicleDetail() {
       <Box className="panel">
         <Box className="filters">
           {(["fuel", "service", "odo"] as const)
-            .filter((kind) => kind === "odo" && canCreateOdo(vehicle.id))
+            .filter((kind) => kind === 'odo' ? canCreateOdo(vehicle.id) : can(`${kind === 'fuel' ? 'fuel' : 'maintenance'}.create`, vehicle.id))
             .map((kind) => (
               <Button
                 key={kind}
@@ -776,7 +776,7 @@ export function VehicleDetail() {
 }
 
 export function Records({ kind }: { kind?: Entry["kind"] }) {
-  const { data, month, selectedVehicle, open, setMonth } = useGarage()
+  const { data, month, selectedVehicle, open, setMonth, can } = useGarage()
   const [params] = useSearchParams()
   const [search, setSearch] = useState(params.get("q") ?? "")
   const [kindFilter, setKindFilter] = useState("all")
@@ -828,12 +828,10 @@ export function Records({ kind }: { kind?: Entry["kind"] }) {
       >
         {!kind && <AddRecordButton />}
       </Heading>
-      {kind && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          {kind === "fuel"
-            ? "Nhật ký nhiên liệu đang được hoàn thiện. Bạn sẽ có thể ghi lại từng lần tiếp nhiên liệu trong phiên bản tiếp theo."
-            : "Nhật ký dịch vụ đang được hoàn thiện. Bạn sẽ có thể lưu các lần bảo dưỡng và sửa chữa trong phiên bản tiếp theo."}
-        </Alert>
+      {kind && can(`${kind === 'fuel' ? 'fuel' : 'maintenance'}.create`) && (
+        <Button variant="contained" sx={{ mb: 3 }} onClick={() => open({ type: 'entry', kind, vehicleId: selectedVehicle === 'all' ? undefined : selectedVehicle })}>
+          {kind === 'fuel' ? 'Th?m nhi?n li?u' : 'Th?m d?ch v?'}
+        </Button>
       )}
       {kind && (
         <Box className="detail-metrics" sx={{ mb: 3 }}>
