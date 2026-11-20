@@ -73,7 +73,7 @@ Một số skill dùng lại còn ví dụ CMS cũ; [rules](doc/rules.md) quy đ
 
 ## Chuẩn bị môi trường
 
-Dùng PowerShell trên Windows và chạy các lệnh bên dưới từ root repository. Cần .NET SDK 10 theo `global.json`, Node.js 22, pnpm 10.34.3 theo `.mise.toml`/package manifest, cùng PostgreSQL có thể truy cập. Script backend ưu tiên `dotnet` trên PATH, fallback về `tools/.local/dotnet/dotnet.exe`. Docker chỉ cần cho nhóm integration test sử dụng Testcontainers.
+Dùng PowerShell trên Windows và chạy các lệnh bên dưới từ root repository. Cần .NET SDK 10 theo `global.json`, Node.js 22, pnpm 10.34.3 theo `.mise.toml`/package manifest, cùng PostgreSQL có thể truy cập. Script backend ưu tiên `dotnet` trên PATH, fallback về `tools/.local/dotnet/dotnet.exe`. Docker Desktop dùng để chạy PostgreSQL local theo hướng dẫn bên dưới và nhóm integration test sử dụng Testcontainers.
 
 ```powershell
 dotnet --version
@@ -93,6 +93,53 @@ dotnet user-secrets --project src/iCareX.Web/iCareX.Web.Api set "ConnectionStrin
 ```
 
 Có thể dùng biến môi trường `ConnectionStrings__iCareX` thay User Secrets. UserSecretsId vẫn là `VehicleCare.Api` ở API/Infrastructure/DatabaseTool để cùng đọc cấu hình local hiện có; key `ConnectionStrings:VehicleCare` được hỗ trợ fallback. Key mới được ưu tiên. Script không nhận hay in connection string qua tham số. Không đặt chuỗi kết nối trong `VITE_*`. Đổi tên solution không đổi tên database hiện có.
+
+## Database local bằng Docker Desktop
+
+Mở Docker Desktop ở chế độ Linux containers, sau đó chạy tại root repository:
+
+```powershell
+docker-compose up -d
+# Cú pháp Compose mới trên Docker Desktop cũng được hỗ trợ:
+# docker compose up -d
+docker compose ps
+```
+
+[docker-compose.yml](docker-compose.yml) tự tải PostgreSQL 18 Alpine, khởi tạo
+database `icarex` và user `admin` với password `123456` khi volume còn trống.
+Kết nối từ máy host tại `127.0.0.1:5432`. Đây là tài khoản PostgreSQL dành cho
+phát triển local, không phải tài khoản đăng nhập ứng dụng. Cổng chỉ bind loopback.
+Volume `postgres_data` giữ dữ liệu qua các lần dừng/tạo lại container; mount
+`/var/lib/postgresql` theo [official PostgreSQL image](https://hub.docker.com/_/postgres)
+cho phiên bản 18.
+
+Sau khi `docker compose ps` báo `healthy`, cấu hình kết nối cho terminal hiện tại
+và chủ động áp dụng các migration để tạo bảng ứng dụng:
+
+```powershell
+$env:ConnectionStrings__iCareX = 'Host=127.0.0.1;Port=5432;Database=icarex;Username=admin;Password=123456'
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\updatedb.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\checkdb.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1
+```
+
+Biến môi trường này ưu tiên hơn User Secrets trong terminal hiện tại, giúp các
+lệnh trên nhắm vào database Docker local. Terminal khác cần đặt lại biến này.
+Compose chỉ khởi tạo PostgreSQL/database/user; không tự chạy EF migration,
+seed hoặc tạo tài khoản ứng dụng.
+
+Nếu cổng 5432 đã được dùng, đặt `$env:POSTGRES_PORT = '5433'` trước khi chạy
+Compose và đổi `Port=5433` trong kết nối backend. Xem log hoặc dừng database:
+
+```powershell
+docker compose logs -f postgres
+docker compose down
+```
+
+`down` giữ volume và dữ liệu. `docker compose down -v` **xóa toàn bộ dữ liệu
+database local**; chỉ dùng khi muốn khởi tạo lại từ đầu. Các giá trị khởi tạo
+user/password/database chỉ có hiệu lực với volume trống; sửa Compose không đổi
+mật khẩu trong volume đã tồn tại. Không dùng tài khoản mặc định này cho production.
 
 ## Dùng scripts
 
