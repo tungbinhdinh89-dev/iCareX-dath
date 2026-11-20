@@ -262,7 +262,8 @@ namespace iCareX.Infrastructure.Migrations
 
                     b.Property<string>("Note")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<decimal>("Odo")
                         .HasPrecision(20, 6)
@@ -275,6 +276,7 @@ namespace iCareX.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<long>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
@@ -390,6 +392,7 @@ namespace iCareX.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<long>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
@@ -483,6 +486,12 @@ namespace iCareX.Infrastructure.Migrations
                     b.Property<Guid?>("DriverUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("FuelEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MaintenanceRecordId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Note")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -506,6 +515,12 @@ namespace iCareX.Infrastructure.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("DriverUserId");
+
+                    b.HasIndex("FuelEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("MaintenanceRecordId")
+                        .IsUnique();
 
                     b.HasIndex("AccountId", "VehicleId", "Date", "Odo");
 
@@ -582,6 +597,48 @@ namespace iCareX.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_reminder_due_odo", "\"DueOdo\" IS NULL OR \"DueOdo\" BETWEEN 0 AND 9999999");
 
                             t.HasCheckConstraint("ck_reminder_status", "\"Status\" IN ('Pending', 'Completed', 'Cancelled')");
+                        });
+                });
+
+            modelBuilder.Entity("iCareX.Domain.Entities.ServiceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Cost")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("MaintenanceRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaintenanceRecordId");
+
+                    b.HasIndex("PlanId");
+
+                    b.ToTable("service_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_service_item_cost", "\"Cost\" BETWEEN 0 AND 10000000000 AND trunc(\"Cost\") = \"Cost\"");
+
+                            t.HasCheckConstraint("ck_service_item_plan", "\"PlanId\" IS NULL OR \"Type\" = 'Maintenance'");
+
+                            t.HasCheckConstraint("ck_service_item_type", "\"Type\" IN ('Repair', 'Maintenance')");
                         });
                 });
 
@@ -1264,6 +1321,16 @@ namespace iCareX.Infrastructure.Migrations
                         .HasForeignKey("DriverUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("iCareX.Domain.Entities.FuelEntry", null)
+                        .WithOne()
+                        .HasForeignKey("iCareX.Domain.Entities.OdometerReading", "FuelEntryId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("iCareX.Domain.Entities.MaintenanceRecord", null)
+                        .WithOne()
+                        .HasForeignKey("iCareX.Domain.Entities.OdometerReading", "MaintenanceRecordId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("iCareX.Domain.Entities.Vehicle", null)
                         .WithMany()
                         .HasForeignKey("AccountId", "VehicleId")
@@ -1295,6 +1362,20 @@ namespace iCareX.Infrastructure.Migrations
                         .HasForeignKey("VehicleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("iCareX.Domain.Entities.ServiceItem", b =>
+                {
+                    b.HasOne("iCareX.Domain.Entities.MaintenanceRecord", null)
+                        .WithMany("Items")
+                        .HasForeignKey("MaintenanceRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("iCareX.Domain.Entities.MaintenancePlan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("iCareX.Domain.Entities.UserSettings", b =>
@@ -1401,6 +1482,11 @@ namespace iCareX.Infrastructure.Migrations
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("iCareX.Domain.Entities.MaintenanceRecord", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("iCareX.Domain.Entities.VehicleBrand", b =>

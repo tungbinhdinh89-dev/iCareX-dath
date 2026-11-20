@@ -29,6 +29,8 @@ export type Vehicle = {
   version: number
 }
 export type Entry = {
+  createdByUserId?: string
+  items?: import('@shared/record-contracts').ServiceItemRequest[]
   id: string
   vehicleId: string
   kind: "fuel" | "service" | "odo"

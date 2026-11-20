@@ -28,6 +28,31 @@ namespace iCareX.IntegrationTests;
 [Trait("Category", "Host")]
 public sealed class VehicleAuthorizationHostTests
 {
+    [Fact]
+    public async Task CostMutationsRequireCsrfAndRejectForgedCreatorFields()
+    {
+        using var host = Host(VehicleMemberRole.Owner);
+        using var client = host.CreateClient();
+        var vehicleId = Guid.NewGuid();
+        foreach (var kind in new[] { "fuel", "service" })
+        {
+            var url = $"/api/v1/vehicles/{vehicleId}/{kind}-records";
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(url, new { })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync(url + $"/{Guid.NewGuid()}?version=0")).StatusCode);
+        }
+        var csrf = await client.GetFromJsonAsync<CsrfResponse>("/api/v1/auth/csrf");
+        client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", csrf!.Token);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/v1/vehicles/{vehicleId}/fuel-records", new
+        {
+            requestId = Guid.NewGuid(), date = "2026-11-02", odo = 10100, cost = 200000, liters = 10, note = "", createdByUserId = Guid.NewGuid()
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/v1/vehicles/{vehicleId}/service-records", new
+        {
+            requestId = Guid.NewGuid(), date = "2026-11-02", odo = 10100, note = "",
+            items = new[] { new { type = "Repair", title = "Sửa xe", cost = 100000, ownerId = Guid.NewGuid() } }
+        })).StatusCode);
+    }
+
     [Theory]
     [InlineData(VehicleMemberRole.Owner, 200)]
     [InlineData(VehicleMemberRole.Manager, 200)]

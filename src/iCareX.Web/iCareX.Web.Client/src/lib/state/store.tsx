@@ -519,7 +519,10 @@ export default function GarageProvider({ children }: { children: ReactNode }) {
         },
         refetch: async () => {
           await refreshPermissions()
-          if (currentAccount.current) await query.refetch()
+          if (currentAccount.current) {
+            const result = await query.refetch()
+            if (result.error) throw result.error
+          }
         },
         month,
         setMonth,

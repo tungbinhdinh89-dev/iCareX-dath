@@ -379,6 +379,20 @@ export const api = {
   async logout() {
     await authMutation<void>("/logout")
   },
+  async saveFuel(vehicleId: string, id: string | undefined, request: import('@shared/record-contracts').FuelWriteRequest) {
+    return apiRequest<import('@shared/record-contracts').FuelResponse>(`/vehicles/${vehicleId}/fuel-records${id ? `/${id}` : ''}`, {
+      method: id ? 'PUT' : 'POST', body: JSON.stringify(request),
+    })
+  },
+  async saveService(vehicleId: string, id: string | undefined, request: import('@shared/record-contracts').ServiceWriteRequest) {
+    return apiRequest<import('@shared/record-contracts').ServiceResponse>(`/vehicles/${vehicleId}/service-records${id ? `/${id}` : ''}`, {
+      method: id ? 'PUT' : 'POST', body: JSON.stringify(request),
+    })
+  },
+  async deleteCostRecord(entry: Entry) {
+    if (entry.kind === 'odo') throw new Error('Loại bản ghi không hợp lệ.')
+    await apiRequest<void>(`/vehicles/${entry.vehicleId}/${entry.kind === 'fuel' ? 'fuel' : 'service'}-records/${entry.id}?version=${entry.version ?? 0}`, { method: 'DELETE' })
+  },
   async get(account: Account | null, signal?: AbortSignal): Promise<Garage> {
     if (!account)
       return {
@@ -405,9 +419,19 @@ export const api = {
     )
       .flat()
       .map(mapReading)
+    const costs = (await Promise.all(vehicles.map(async (vehicle) => {
+      const [fuel, services] = await Promise.all([
+        apiRequest<import('@shared/record-contracts').FuelResponse[]>(`/vehicles/${vehicle.id}/fuel-records`, { signal }),
+        apiRequest<import('@shared/record-contracts').ServiceResponse[]>(`/vehicles/${vehicle.id}/service-records`, { signal }),
+      ])
+      return [
+        ...fuel.map((x): Entry => ({ ...x, kind: 'fuel', title: 'Nhiên liệu' })),
+        ...services.map((x): Entry => ({ ...x, kind: 'service', title: x.items.map(i => i.title).join(' · '), liters: 0 })),
+      ]
+    }))).flat()
     return {
       vehicles,
-      entries: readings,
+      entries: [...readings, ...costs],
       plans: [],
       profile: {
         name: account.name,

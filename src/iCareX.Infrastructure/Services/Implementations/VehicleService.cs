@@ -114,7 +114,8 @@ public sealed class VehicleService(
         var vehicle = await repository.FindAsync(accountId, vehicleId, cancellationToken);
         if (vehicle is null) return null;
         await access.RequireAsync(accountId, vehicleId, VehiclePermissions.VehicleRead, cancellationToken);
-        return (await repository.ReadingsAsync(vehicle.AccountId, vehicleId, cancellationToken)).Select(ToReadingResponse).ToArray();
+        return (await repository.ReadingsAsync(vehicle.AccountId, vehicleId, cancellationToken))
+            .Where(x => x.FuelEntryId is null && x.MaintenanceRecordId is null).Select(ToReadingResponse).ToArray();
     }
 
     public async Task<OdometerReadingResponse> CreateReadingAsync(Guid accountId, Guid vehicleId, CreateOdometerReadingRequest request, CancellationToken cancellationToken)
@@ -148,6 +149,7 @@ public sealed class VehicleService(
         var reading = await repository.FindReadingAsync(vehicle.AccountId, vehicleId, readingId, cancellationToken)
             ?? throw new VehicleNotFoundException();
         EnsureVersion(reading, request.Version);
+        EnsureManualReading(reading);
         var history = await repository.ReadingsAsync(vehicle.AccountId, vehicleId, cancellationToken);
         reading.Date = request.Date; reading.Odo = request.Odo; reading.Note = request.Note?.Trim() ?? "";
         GarageRules.ValidateEntry(vehicle, ToEntry(reading), history.Select(ToEntry), clock.Today);
@@ -168,6 +170,7 @@ public sealed class VehicleService(
         var reading = await repository.FindReadingAsync(vehicle.AccountId, vehicleId, readingId, cancellationToken)
             ?? throw new VehicleNotFoundException();
         EnsureVersion(reading, version);
+        EnsureManualReading(reading);
         repository.RemoveReading(reading);
         Audit(accountId, vehicle, "vehicle.changed");
         await SaveWithConcurrency(cancellationToken);
@@ -265,6 +268,12 @@ public sealed class VehicleService(
             v.Year, v.Odometer, GarageRules.CurrentOdo(v, readings.Select(ToEntry)), v.FuelType.ToString(), v.FuelCapacity,
             v.OdometerUnit.ToString(), v.VIN, v.RegistrationId, v.PurchasePrice, v.SalePrice,
             v.Notes, v.ImageUrl, v.ArchivedAtUtc is not null, v.Version, v.CreatedAtUtc, v.UpdatedAtUtc);
+
+    private static void EnsureManualReading(OdometerReading reading)
+    {
+        if (reading.FuelEntryId is not null || reading.MaintenanceRecordId is not null)
+            throw new VehicleConflictException("ODO nguồn chỉ được sửa/xóa thông qua bản ghi nhiên liệu hoặc dịch vụ.");
+    }
 
     private static OdometerReadingResponse ToReadingResponse(OdometerReading reading) =>
         new(reading.Id, reading.VehicleId, reading.Date, reading.Odo, "Cập nhật ODO", reading.Note, reading.Version);

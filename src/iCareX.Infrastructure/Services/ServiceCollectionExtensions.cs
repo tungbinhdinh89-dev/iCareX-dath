@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVehicleMemberService, VehicleMemberService>();
         services.AddScoped<IVehicleInvitationService, VehicleInvitationService>();
         services.AddScoped<IVehicleService, VehicleService>();
+        services.AddScoped<iCareX.Application.Features.Records.IRecordService, RecordService>();
         services.AddScoped<IVehicleCatalogService, VehicleCatalogService>();
         return services;
     }

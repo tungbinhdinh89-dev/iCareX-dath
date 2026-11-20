@@ -69,7 +69,7 @@ public sealed class HostTests
 
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await client.GetAsync("/api/v1/auth/me")).StatusCode);
-        foreach (var path in new[] { "/api/v1/me/permissions", "/api/v1/vehicles", $"/api/v1/vehicles/{Guid.NewGuid()}/permissions", $"/api/v1/vehicles/{Guid.NewGuid()}/members" })
+        foreach (var path in new[] { "/api/v1/me/permissions", "/api/v1/vehicles", $"/api/v1/vehicles/{Guid.NewGuid()}/permissions", $"/api/v1/vehicles/{Guid.NewGuid()}/members", $"/api/v1/vehicles/{Guid.NewGuid()}/fuel-records", $"/api/v1/vehicles/{Guid.NewGuid()}/service-records" })
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
         foreach (var (path, body) in new (string, object)[]
         {
